@@ -174,10 +174,22 @@ def dispatch_to_discord(token, chan_id, name, email, comp_name, comp_url, pdf_pa
 # 5. STREAMLIT APP & UI
 # ==========================================
 
+# ==========================================
+# 5. STREAMLIT APP & UI
+# ==========================================
+
 st.set_page_config(page_title="Corporate Intelligence", layout="wide")
 
+# This hides the GitHub icon AND keeps your search bar looking premium
 st.markdown("""<style>
+/* Keeps the blue highlight on the search bar */
 div[data-testid="stTextInput"] div[data-baseweb="input"] { border: 2px solid #4F8BF9 !important; border-radius: 8px !important; }
+
+/* Hides the GitHub Icon and standard Streamlit top-right menu badges */
+.css-1jc7ptx, .e1ewe7hr3, .viewerBadge_container__1QSob,
+.styles_viewerBadge__1yB5_, .viewerBadge_link__1S137,
+.viewerBadge_text__1JaDK { display: none !important; }
+#GithubIcon { visibility: hidden !important; }
 </style>""", unsafe_allow_html=True)
 
 if "analysis_complete" not in st.session_state: st.session_state.analysis_complete = False
