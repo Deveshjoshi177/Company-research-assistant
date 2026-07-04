@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
 # ==========================================
@@ -77,23 +77,19 @@ def parse_ai_markdown(text):
     """Safely extracts sections from the AI's markdown output."""
     data = {"summary": "Analysis completed.", "products": [], "pain_points": [], "competitors": []}
     
-    # Extract Summary
     sum_match = re.search(r'### SUMMARY\s*(.*?)(?:###|$)', text, re.IGNORECASE | re.DOTALL)
     if sum_match: data["summary"] = sum_match.group(1).replace('*', '').strip()
     
-    # Extract Products
     prod_match = re.search(r'### PRODUCTS\s*(.*?)(?:###|$)', text, re.IGNORECASE | re.DOTALL)
     if prod_match:
         for line in prod_match.group(1).split('\n'):
             if line.strip().startswith('-'): data["products"].append(line.replace('-', '').replace('*', '').strip())
             
-    # Extract Pain Points
     pain_match = re.search(r'### PAIN POINTS\s*(.*?)(?:###|$)', text, re.IGNORECASE | re.DOTALL)
     if pain_match:
         for line in pain_match.group(1).split('\n'):
             if line.strip().startswith('-'): data["pain_points"].append(line.replace('-', '').replace('*', '').strip())
             
-    # Extract Competitors
     comp_match = re.search(r'### COMPETITORS\s*(.*?)(?:###|$)', text, re.IGNORECASE | re.DOTALL)
     if comp_match:
         for line in comp_match.group(1).split('\n'):
@@ -101,26 +97,32 @@ def parse_ai_markdown(text):
                 parts = [p.strip() for p in line.replace('-', '').replace('*', '').split('|')]
                 if len(parts) >= 2: data["competitors"].append({"name": parts[0], "url": parts[1], "focus": parts[2] if len(parts)>2 else ""})
                 
-    # Fallbacks if AI completely fails
     if not data["products"]: data["products"] = ["Core Platform Architecture", "Enterprise Solutions"]
     if not data["pain_points"]: data["pain_points"] = ["Operational scaling", "Market differentiation"]
     if not data["competitors"]: data["competitors"] = [{"name": "Market Alternative", "url": "N/A", "focus": "Direct Competition"}]
     return data
 
 # ==========================================
-# 3. CLEAN PDF ENGINE
+# 3. BUG-FREE PDF ENGINE
 # ==========================================
 
 def create_pdf_report(filename, data, meta):
-    doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=0, bottomMargin=40)
+    doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=20, bottomMargin=40)
     elements, styles = [], getSampleStyleSheet()
     normal = styles["Normal"]
     normal.leading, normal.fontSize = 14, 10
     
-    # Header
-    elements.append(Table([[Paragraph("<font color='#C89B3C'><b>COMPANY INTELLIGENCE REPORT</b></font>", normal)],
-                           [Paragraph(f"<font color='white' size=24><b>{meta['name']}</b></font>", normal)]], 
-                           colWidths=[doc.width], style=[('BACKGROUND', (0,0), (-1,-1), colors.black), ('PADDING', (0,0), (-1,-1), 20)]))
+    title_style = ParagraphStyle('TitleStyle', parent=normal, fontSize=24, leading=28, textColor=colors.white)
+    
+    elements.append(Table([
+        [Paragraph("<font color='#C89B3C'><b>COMPANY INTELLIGENCE REPORT</b></font>", normal)],
+        [Paragraph(f"<b>{meta['name']}</b>", title_style)]
+    ], colWidths=[doc.width], style=[
+        ('BACKGROUND', (0,0), (-1,-1), colors.black), 
+        ('TOPPADDING', (0,0), (-1,-1), 20),
+        ('BOTTOMPADDING', (0,1), (-1,1), 25), 
+        ('LEFTPADDING', (0,0), (-1,-1), 20)
+    ]))
     elements.append(Spacer(1, 15))
 
     def add_header(title):
@@ -128,15 +130,14 @@ def create_pdf_report(filename, data, meta):
                               style=[('LINEBELOW', (0,0), (-1,-1), 1, colors.HexColor("#C89B3C")), ('BOTTOMPADDING', (0,0), (-1,-1), 5)]))
         elements.append(Spacer(1, 10))
 
-    # Meta
     add_header("Corporate Footprint")
     elements.append(Table([
         [Paragraph("<b>Website:</b>", normal), Paragraph(meta['url'], normal)],
-        [Paragraph("<b>Contact/HQ:</b>", normal), Paragraph(meta['contact'], normal)]
+        [Paragraph("<b>Contact Detail:</b>", normal), Paragraph(meta['contact'], normal)],
+        [Paragraph("<b>HQ Address:</b>", normal), Paragraph(meta['address'], normal)]
     ], colWidths=[100, doc.width - 100], style=[('VALIGN', (0,0), (-1,-1), 'TOP')]))
     elements.append(Spacer(1, 15))
 
-    # Sections
     add_header("Executive Summary")
     elements.extend([Paragraph(data['summary'], normal), Spacer(1, 15)])
     
@@ -175,7 +176,6 @@ def dispatch_to_discord(token, chan_id, name, email, comp_name, comp_url, pdf_pa
 
 st.set_page_config(page_title="Corporate Intelligence", layout="wide")
 
-# Safe CSS injection
 st.markdown("""<style>
 div[data-testid="stTextInput"] div[data-baseweb="input"] { border: 2px solid #4F8BF9 !important; border-radius: 8px !important; }
 </style>""", unsafe_allow_html=True)
@@ -188,6 +188,13 @@ with st.sidebar:
     with st.expander("Discord Setup", expanded=True):
         app_name, app_email = st.text_input("Name"), st.text_input("Email")
         bot_token, chan_id = st.text_input("Bot Token", type="password"), st.text_input("Channel ID")
+    
+    st.markdown("---")
+    st.markdown("""
+        <div style="text-align: center; color: #888888; font-size: 0.85rem; padding-top: 10px;">
+            🔒 <b>AI System Secured</b><br>Developed & Owned by <br><span style="color: #ff4b4b; font-weight: bold;">Devesh Joshi</span>
+        </div>
+    """, unsafe_allow_html=True)
 
 st.title("💭 Intelligent AI Research System")
 input_query = st.text_input("Enter Company Name or URL:", placeholder="e.g., 'Stripe' or 'https://tesla.com'")
@@ -222,19 +229,26 @@ if st.button("Generate Intelligence Report", type="primary") and input_query.str
         """
         
         st.session_state.parsed_data = parse_ai_markdown(ask_openrouter(model_choice, prompt))
-        phone = re.search(r'\+?\d{1,4}[-.\s]?\(?\d{1,3}\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}', meta_intel)
-        st.session_state.meta = {"name": target_name, "url": target_url, "contact": phone.group(0) if phone else "Extracted from search records"}
+        
+        phone_match = re.search(r'(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}', meta_intel)
+        addr_match = re.search(r'([^.|\n]+(?:Street|Ave|Avenue|Blvd|Road|Suite|Floor|Drive|Parkway)[^.|\n]+)', meta_intel, re.IGNORECASE)
+        
+        st.session_state.meta = {
+            "name": target_name, 
+            "url": target_url, 
+            "contact": phone_match.group(0) if phone_match else "Not publicly listed",
+            "address": addr_match.group(1).strip() if addr_match else "Global / Check official website"
+        }
+        
         st.session_state.analysis_complete = True
         status.update(label="Complete!", state="complete")
-    st.balloons()
 
 # ==========================================
-# 6. BUG-FREE VERCEL UI OUTPUT
+# 6. VERCEL UI OUTPUT (DYNAMIC FILENAMES)
 # ==========================================
 if st.session_state.analysis_complete:
     st.markdown("---")
     
-    # CSS for the custom UI layout
     st.markdown("""<style>
     .rep-box { background: #0E1117; border: 1px solid #1E2329; border-radius: 12px; padding: 25px; color: #E2E8F0; margin-bottom: 20px; font-family: sans-serif; }
     .rep-title { font-size: 32px; font-weight: bold; color: white; }
@@ -250,14 +264,13 @@ if st.session_state.analysis_complete:
 
     d, m = st.session_state.parsed_data, st.session_state.meta
     
-    # Building HTML safely using a list join to prevent ANY auto-indentation bugs
     html_parts = [
         "<div class='rep-box'>",
         f"<div class='rep-title'>{m['name']}</div>",
         f"<a href='{m['url']}' class='rep-url' target='_blank'>{m['url']}</a>",
         "<div class='m-grid'>",
-        f"<div class='m-card'><div class='m-lbl'>Contact Ref</div><div>{m['contact']}</div></div>",
-        f"<div class='m-card'><div class='m-lbl'>Data Source</div><div>Serper OSINT Intel</div></div>",
+        f"<div class='m-card'><div class='m-lbl'>Contact Detail</div><div>{m['contact']}</div></div>",
+        f"<div class='m-card'><div class='m-lbl'>HQ Address</div><div>{m['address']}</div></div>",
         "</div>",
         "<div class='sec-hdr'>Executive Summary</div>",
         f"<div style='font-size:14px; line-height:1.5;'>{d['summary']}</div>",
@@ -271,7 +284,8 @@ if st.session_state.analysis_complete:
     ]
     st.markdown("".join(html_parts), unsafe_allow_html=True)
     
-    pdf_file = "Report.pdf"
+    # Safe dynamic file naming to prevent concurrency collisions
+    pdf_file = f"{m['name'].replace(' ', '_')}_Report.pdf"
     create_pdf_report(pdf_file, d, m)
     csv_data = pd.DataFrame(d['competitors']).to_csv(index=False).encode('utf-8')
     
